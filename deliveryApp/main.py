@@ -13,13 +13,13 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Здесь лучше указать разрешённые origin (домены), вместо "*" для безопасности
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Подключим ваш роутер
+
 app.include_router(api_router)
 
 if __name__ == "__main__":
