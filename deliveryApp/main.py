@@ -1,54 +1,57 @@
-# app/api/router.py
-from fastapi import FastAPI
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
+from enum import Enum
+from typing import List, Optional, Union
 from sqlalchemy.orm import Session
-from schemas import *# ClientCreate, OrderCreate
-from crud import *# create_client, create_order, get_clients
-from database import SessionLocal
-from fastapi.middleware.cors import CORSMiddleware
-from router import router as api_router
 
-router = APIRouter()
-app = FastAPI()
+from fastapi_users import fastapi_users, FastAPIUsers
+from pydantic import BaseModel, Field
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+from fastapi import FastAPI, Request, status, Depends
+from routers import router
+from fastapi.encoders import jsonable_encoder
+#from fastapi.exceptions import ValidationError
+from fastapi.responses import JSONResponse
+
+from auth.auth import auth_backend
+from auth.database import User
+from auth.manager import get_user_manager
+from auth.schemas import UserRead, UserCreate
+from auth.schemas import * 
+from models.models import * 
+
+app = FastAPI(
+    title="Delivery"
 )
 
+fastapi_users = FastAPIUsers[User, int](
+    get_user_manager,
+    [auth_backend],
+)
 
-app.include_router(api_router)
+app.include_router(
+    fastapi_users.get_auth_router(auth_backend),
+    prefix="/auth/jwt",
+    tags=["auth"],
+)
 
-if __name__ == "__main__":
-    import uvicorn
+app.include_router(
+    fastapi_users.get_register_router(UserRead, UserCreate),
+    prefix="/auth",
+    tags=["auth"],
+)
+app.include_router(router)
 
-    uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)
+current_user = fastapi_users.current_user()
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+@app.get("/protected-route")
+def protected_route(user: User = Depends(current_user)):
+    return f"Hello, {user.username}"
 
-# @router.post("/clients/")
-# def create_new_client(client: ClientCreate, db: Session = Depends(get_db)):
-#     return create_client(db, client)
 
-# @router.delete("/clients/{client_id}")
-# def delete_client_endpoint(client_id: int, db: Session = Depends(get_db)):
-#     success = delete_client(db, client_id)
-#     if not success:
-#         raise HTTPException(status_code=404, detail="Client not found")
-#     return {"message": "Client deleted successfully"}
+@app.get("/unprotected-route")
+def unprotected_route():
+    return f"Hello, anonym"
 
-# @router.post("/orders/")
-# def create_new_order(order: OrderCreate, db: Session = Depends(get_db)):
-#     return create_order(db, order)
 
-# @router.get("/clients/")
-# def read_clients(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
-#     return get_clients(db, skip=skip, limit=limit)
+
+
